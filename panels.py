@@ -2,7 +2,6 @@ from bpy.types import Panel
 from .operators import *
 from .utilities import *
 
-
 class Panel_PT_CitoStart(bpy.types.Panel):
     bl_label = "CITOGRAPHY - Start:"
     bl_idname = "C_PT_CitoPanelStart"
@@ -12,24 +11,7 @@ class Panel_PT_CitoStart(bpy.types.Panel):
     
     def draw(self, context):
         layout = self.layout
-        
-        row = layout.row()
-        layout.operator("object.cleanthescene", text="Clean the scene")
-        
-# class Panel_PT_CitographyStart(Panel):
-#     bl_label = "CITOGRAPHY - Start"
-#     bl_idname = "C_PT_CitoStartPanel"  # Updated to follow convention
-#     bl_space_type = 'VIEW_3D'
-#     bl_region_type = 'UI'
-#     bl_category = "Citography" 
-#     bl_context = "objectmode"
-    
-#     def draw(self, context):
-#         layout = self.layout
-#         row = layout.row()
-#         row.operator("object.simple_add_cube", icon= "X")  # Using the string ID directly
-#         row = layout.row()
-#         layout.label(text="* use BlenderGIS to georeference the scene")
+        layout.operator("object.cleanthescene", text="Clean the scene", icon= "X")
 
 # main panel - import
 class Panel_PT_CitographyImport(Panel):
@@ -107,10 +89,10 @@ class  SubPanel_PT_Geoimages(Panel):
         layout = self.layout
         layout.operator("object.geo_images_import", text=SelectFolderImages.bl_label)
         row = layout.row()
-        row.label(text="Select and:", icon="SHADING_WIRE")
+        row.label(text="Select and:", icon="DOCUMENTS")
         row.operator("object.rotate_images_flat", text=TurnImageFlat.bl_label)
         row = layout.row()
-        row.label(text="Select and:", icon="SHADING_WIRE")
+        row.label(text="Select and:", icon="STICKY_UVS_DISABLE")
         row.operator("object.rotate_same_z", text=TurnImagesZRotation.bl_label)
 
 #sub panel - import
@@ -130,6 +112,13 @@ class SubPanel_PT_GPSData(Panel):
         layout.separator()
         row = layout.row()
         row.operator(ImportCSVFile.bl_idname, text=ImportCSVFile.bl_label)
+        row = layout.row()
+        row.operator(MakeVertextsToPath.bl_idname, icon="IPO_CONSTANT", text=MakeVertextsToPath.bl_label)
+        row = layout.row()
+        split = row.split(factor=0.5, align=True)
+        split.operator(MakeVertexToBezier.bl_idname, icon="IPO_BACK", text="Bezier Path")
+        split.prop(scene, "curve_resolution_u", text="Resolution", slider=True)
+        row = layout.row()
 
 #sub panel - import
 class SubPanel_PT_Explore2DMap(Panel):
@@ -145,9 +134,11 @@ class SubPanel_PT_Explore2DMap(Panel):
         layout = self.layout
         obj = context.object 
         row = layout.row()
+        row.operator("view3d.set_camera_top_view", text="Camera")
+        row = layout.row()
 
 # # sub panel - import
-class SubPanel_PT_Explore_3DMap(Panel):
+class SubPanel_PT_Explore3DMap(Panel):
     bl_label = "3D MAP"
     bl_idname = "C_PT_Cito3mapPpanel"
     bl_space_type = "VIEW_3D"
@@ -160,23 +151,27 @@ class SubPanel_PT_Explore_3DMap(Panel):
         layout = self.layout
         obj = context.object 
         row = layout.row()
+        row.operator("view3d.set_camera_animation_path", text="Camera")
+        col = layout.column()
+        col.prop(context.scene, 'path_duration', text='Path Duration')
+        row = layout.row()
+        row.operator("view3d.animate_camera_along_path", text="Animate Camera Along Path")
+
+classes = [
+    Panel_PT_CitoStart,
+    Panel_PT_CitographyImport,
+    SubPanel_PT_Image,
+    SubPanel_PT_Geoimages,
+    SubPanel_PT_GPSData,
+    Panel_PT_CitographyExplore,
+    SubPanel_PT_Explore2DMap,
+    SubPanel_PT_Explore3DMap,
+]
 
 def register():
-    bpy.utils.register_class(Panel_PT_CitoStart)
-    bpy.utils.register_class(Panel_PT_CitographyImport)
-    bpy.utils.register_class(SubPanel_PT_Image)
-    bpy.utils.register_class(SubPanel_PT_Geoimages)
-    bpy.utils.register_class(SubPanel_PT_GPSData)
-    bpy.utils.register_class(Panel_PT_CitographyExplore)
-    bpy.utils.register_class(SubPanel_PT_Explore2DMap)
-    bpy.utils.register_class(SubPanel_PT_Explore_3DMap)
-    
+    for cls in classes:
+        bpy.utils.register_class(cls)
+        
 def unregister():
-    bpy.utils.unregister_class(Panel_PT_CitoStart)
-    bpy.utils.unregister_class(Panel_PT_CitographyImport)
-    bpy.utils.unregister_class(SubPanel_PT_Image)
-    bpy.utils.unregister_class(SubPanel_PT_Geoimages)
-    bpy.utils.unregister_class(SubPanel_PT_GPSData)
-    bpy.utils.unregister_class(Panel_PT_CitographyExplore)
-    bpy.utils.unregister_class(SubPanel_PT_Explore2DMap)
-    bpy.utils.unregister_class(SubPanel_PT_Explore_3DMap)
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)

@@ -3,6 +3,7 @@ import math
 import random
 import pandas as pd #CHECK IF INSTALLED
 import bpy
+import bmesh
 import bpy_extras.io_utils
 from bpy.types import Operator
 from bpy.props import StringProperty, FloatProperty
@@ -24,6 +25,10 @@ class CleanTheScene(bpy.types.Operator):
         try:
             bpy.ops.object.select_all(action='SELECT')
             bpy.ops.object.delete()
+            
+            # Push an undo step
+            bpy.ops.ed.undo_push(message="Delete All Objects")
+            
         except Exception as e:
             self.report({'ERROR'}, f"An error occurred: {e}")
         return {'FINISHED'}
@@ -206,8 +211,6 @@ class ImportGeoImages(Operator):
 
         return {'FINISHED'}
 
-
-
 class TurnImageFlat(Operator):
     bl_idname = "object.rotate_images_flat"
     bl_label = "Flat rotation"
@@ -290,68 +293,309 @@ class ImportCSVFile(Operator):
         self.report({'INFO'}, f"Created mesh with {len(vertices)} vertices.")
     
         return {'FINISHED'}
-
-# class DataPointsToCurve(Operator):
-#     bl_idname = "object.datapoints_to_curve"
-#     bl_label = "Points to Curve"
-
-#     def execute(self, context):
-#         return {'FINISHED'}
     
-def register():
-    bpy.utils.register_class(CleanTheScene)
-    bpy.utils.register_class(AddRandomImage)
-    bpy.utils.register_class(DistributeImagesGrid)
-    bpy.utils.register_class(SelectFolderImages)
-    bpy.utils.register_class(ImportGeoImages)
-    #bpy.utils.register_class(SimpleAddCube)
-    bpy.utils.register_class(TurnImageFlat)
-    bpy.utils.register_class(TurnImagesZRotation)
-    bpy.utils.register_class(ImportCSVFile)
-    #bpy.utils.register_class(DataPointsToCurve)
-    bpy.types.Scene.path1 = bpy.props.StringProperty(
+class MakeVertextsToPath(Operator):
+    bl_idname = "object.vertex_to_path"
+    bl_label = " Polyline "
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+
+        try: 
+            # Assume that the desired object is currently selected
+            obj = bpy.context.active_object
+
+            # Store the initial mode
+            initial_mode = bpy.context.object.mode
+
+            # Ensure you are in Edit mode
+            if initial_mode != 'EDIT':
+                bpy.ops.object.mode_set(mode='EDIT')
+
+            # Get the mesh and BMesh
+            me = obj.data
+            bm = bmesh.from_edit_mesh(me)
+
+            # Get the selected vertices
+            selected_verts = [v for v in bm.verts if v.select]
+
+            # Prepare a list to store global coordinates
+            coords = [obj.matrix_world @ v.co for v in selected_verts]
+
+            # Switch back to initial mode before creating the curve to avoid context issues
+            bpy.ops.object.mode_set(mode=initial_mode)
+
+            # Create a new curve
+            curve_data = bpy.data.curves.new(obj.name + '_curve', type='CURVE')
+            curve_data.dimensions = '3D'
+            curve_data.resolution_u = 10  # Increasing for smoother curves
+
+            # Create a new object with the curve
+            curve_object = bpy.data.objects.new(obj.name + '_curve', curve_data)
+            curve_object.location = obj.location
+            bpy.context.collection.objects.link(curve_object)
+
+            # Create a new spline in the curve
+            polyline = curve_data.splines.new('POLY')
+            polyline.points.add(len(coords)-1)  
+
+            # Assign the coordinates to spline points
+            for i, coord in enumerate(coords):
+                x, y, z = coord
+                polyline.points[i].co = (x, y, z, 1)        
+
+        except Exception as e:
+            self.report({'ERROR'}, f"An error occurred: {e}")
+        
+        return {'FINISHED'} 
+
+class MakeVertexToBezier(Operator):
+    bl_idname = "object.vertex_to_bezier"
+    bl_label = "Make a Bezier Path"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context=bpy.context):
+        try:
+            obj = context.active_object
+            curve_resolution = context.scene.curve_resolution_u  # Get the property
+
+            initial_mode = context.object.mode
+
+            if initial_mode != 'EDIT':
+                bpy.ops.object.mode_set(mode='EDIT')
+
+            me = obj.data
+            bm = bmesh.from_edit_mesh(me)
+
+            selected_verts = [v for v in bm.verts if v.select]
+
+            coords = [obj.matrix_world @ v.co for v in selected_verts]
+
+            bpy.ops.object.mode_set(mode=initial_mode)
+
+            curve_data = bpy.data.curves.new(obj.name + '_curve', type='CURVE')
+            curve_data.dimensions = '3D'
+            print(f"Setting resolution_u to {int(curve_resolution)}")  # Debugging Line
+            
+            curve_data.resolution_u = int(curve_resolution)
+            
+            # Check if the value is set
+            print(f"Current resolution_u is {curve_data.resolution_u}")  # Debugging Line
+
+            curve_object = bpy.data.objects.new(obj.name + '_curve', curve_data)
+            curve_object.location = obj.location
+            context.collection.objects.link(curve_object)
+
+            spline = curve_data.splines.new('BEZIER')
+            spline.bezier_points.add(len(coords)-1)
+
+            for i, coord in enumerate(coords):
+                x, y, z = coord
+                spline.bezier_points[i].co = (x, y, z)
+                spline.bezier_points[i].handle_right_type = 'AUTO'
+                spline.bezier_points[i].handle_left_type = 'AUTO'
+
+            spline.use_cyclic_u = True  # Make the curve cyclic
+
+        except Exception as e:
+            self.report({'ERROR'}, f"An error occurred: {e}")
+
+        return {'FINISHED'}
+    
+class SetCameraTopView(Operator):
+    bl_idname = "view3d.set_camera_top_view"
+    bl_label = "Set Camera Top View"
+    
+    def execute(self, context):
+        # Check if a camera named "Citography_top" exists
+        cam = bpy.data.objects.get("Citography_top")
+        
+        # If it does not exist, create it
+        if cam is None:
+            bpy.ops.object.camera_add(location=(0, 0, 100))
+            cam = bpy.context.active_object
+            cam.name = "Citography_top"
+        else:
+            # If it exists, set it as the active object
+            bpy.context.view_layer.objects.active = cam
+            cam.select_set(True)
+            
+        # Set camera rotation for a top view
+        cam.location = (0, 0, 100)  # Adjust the Z-axis as per need
+        cam.rotation_euler = (0, 0, 0)  # Clear existing rotation
+        cam.data.type = 'ORTHO'
+        cam.data.ortho_scale = 1000
+            
+        # Change the view to the camera view
+        bpy.ops.view3d.view_camera()
+        
+        return {'FINISHED'}
+
+bpy.types.Scene.path_duration = bpy.props.IntProperty(
+    name="Path Duration",
+    description="Set the duration that the camera will take to traverse the path",
+    default=2000,
+    min=1,
+    max=20000
+)
+
+class SetCameraAnimationPath(Operator):
+    bl_idname = "view3d.set_camera_animation_path"
+    bl_label = "Set Camera Animation Path"
+
+    path_duration: bpy.props.IntProperty(
+        name="Path Duration",
+        description="Set the duration that the camera will take to traverse the path",
+        default=2000,  # Your default value
+        min=1  # Minimum path duration
+    )
+
+    def execute(self, context):
+        curve = context.active_object
+        if not (curve and curve.type == 'CURVE'):
+            self.report({'WARNING'}, "Active object is not a valid Bezier curve")
+            return {'CANCELLED'}
+        
+        curve.data.path_duration = context.scene.path_duration   # Use the property value   
+        
+        # Create the camera and set its name
+        base_name = "Citography_animation"
+        suffix = 0
+        while bpy.data.objects.get(f"{base_name}{suffix if suffix != 0 else ''}") is not None:
+            suffix += 1
+        bpy.ops.object.camera_add(location=(0, 0, 0))
+        cam = context.active_object
+        cam.name = f"{base_name}{suffix if suffix != 0 else ''}"
+        
+        # Add a Follow Path constraint to the camera
+        cam_constraint = cam.constraints.new(type='FOLLOW_PATH')
+        cam_constraint.target = curve
+        cam_constraint.use_curve_follow = True
+        
+        # Create an Empty for the camera to track
+        bpy.ops.object.empty_add(location=(0, 0, 0), scale=(1, 1, 1))  # Scale reduced to 1 for visibility
+        empty = context.active_object
+        empty.name = f"{cam.name}_Target"
+
+        # Add Follow Path constraint to the Empty
+        empty_constraint = empty.constraints.new(type='FOLLOW_PATH')
+        empty_constraint.target = curve
+        empty_constraint.use_curve_follow = True
+        empty_constraint.offset = -9.7  # Move Empty a bit ahead
+
+        # Make camera track the Empty
+        track_constraint = cam.constraints.new(type='TRACK_TO')
+        track_constraint.target = empty
+        track_constraint.track_axis = 'TRACK_NEGATIVE_Z'
+        track_constraint.up_axis = 'UP_Y'
+
+        return {'FINISHED'}
+
+
+class AnimateCameraAlongPath(Operator):
+    bl_idname = "view3d.animate_camera_along_path"
+    bl_label = "Animate Camera Along Path"
+    
+    def execute(self, context):
+        # Ensure at least one camera exists
+        if not any(obj.type == 'CAMERA' for obj in bpy.data.objects):
+            self.report({'WARNING'}, "No camera exists")
+            return {'CANCELLED'}
+        
+        # Get the last created camera or another desired one
+        cam = next((obj for obj in bpy.data.objects if obj.type == 'CAMERA'), None)
+        
+        # Locate the Follow Path constraint and animate the path
+        follow_path_constraint = next((c for c in cam.constraints if c.type == 'FOLLOW_PATH'), None)
+        if follow_path_constraint is not None:
+            bpy.ops.constraint.followpath_path_animate(constraint=follow_path_constraint.name, owner='OBJECT')
+        else:
+            self.report({'WARNING'}, "No Follow Path constraint found on the camera")
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
+
+
+# List of classes operators
+classes = [
+    CleanTheScene,
+    AddRandomImage,
+    DistributeImagesGrid,
+    SelectFolderImages,
+    ImportGeoImages,
+    # SimpleAddCube,
+    TurnImageFlat,
+    TurnImagesZRotation,
+    ImportCSVFile,
+    MakeVertextsToPath,
+    MakeVertexToBezier,
+    SetCameraTopView,
+    SetCameraAnimationPath,
+    AnimateCameraAlongPath,
+]
+
+# Properties to register
+properties = {
+    "path1": bpy.props.StringProperty(
         name="Path1",
         description="A filepath",
         default="",
         maxlen=1024,
         subtype='DIR_PATH'
-    )
-
-    bpy.types.Scene.path2 = bpy.props.StringProperty(
+    ),
+    "path2": bpy.props.StringProperty(
         name="Path2",
         description="A filepath",
         default="",
         maxlen=1024,
         subtype='DIR_PATH'
-    )
-
-    bpy.types.Scene.path3 = bpy.props.StringProperty(
+    ),
+    "path3": bpy.props.StringProperty(
         name="Path3",
         description="A filepath",
         default="",
         maxlen=1024,
         subtype='FILE_PATH'
-    )
-    bpy.types.Scene.spacing = bpy.props.FloatProperty(
+    ),
+    "spacing": bpy.props.FloatProperty(
         name="Spacing",
         description="Space between images in the grid",
         default=2.0,
         min=0.0,
         max=10.0
+    ),
+    "curve_resolution_u": bpy.props.IntProperty(
+        name="Resolution",
+        description="Bezier curve resolution u",
+        default=4,
+        min=0,
+        max=30
+    ),
+    "path_duration": bpy.props.IntProperty(
+        name="Path Duration",
+        description="Set the duration that the camera will take to traverse the path",
+        default=2000,
+        min=1,
+        max=20000
     )
+}
 
-       
+
+def register():
+    # Register classes
+    for cls in classes:
+        bpy.utils.register_class(cls)
+    
+    # Register properties
+    for prop_name, prop_value in properties.items():
+        setattr(bpy.types.Scene, prop_name, prop_value)
+
+
 def unregister():
-    bpy.utils.unregister_class(CleanTheScene)
-    bpy.utils.unregister_class(AddRandomImage)
-    bpy.utils.unregister_class(DistributeImagesGrid)
-    bpy.utils.unregister_class(SelectFolderImages)
-    bpy.utils.unregister_class(ImportGeoImages)
-    #bpy.utils.unregister_class(SimpleAddCube)
-    bpy.utils.unregister_class(TurnImageFlat)
-    bpy.utils.unregister_class(TurnImagesZRotation)
-    bpy.utils.register_class(ImportCSVFile)
-    del bpy.types.Scene.path1
-    del bpy.types.Scene.path2
-    del bpy.types.Scene.path3
-    del bpy.types.Scene.spacing
+    # Unregister classes
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
+    
+    # Unregister/Delete properties
+    for prop_name in properties.keys():
+        delattr(bpy.types.Scene, prop_name)

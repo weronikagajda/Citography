@@ -16,7 +16,7 @@ from . import panels, operators
 bl_info = {
     "name" : "Citography - Beta",
     "author" : "Wero",
-    "version" : (1, 8),
+    "version" : (1, 9),
     "blender" : (3, 5, 1),
     "locoation" : "View3d > Tool",
     "description": "Extended Mapping Tool",
