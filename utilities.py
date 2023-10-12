@@ -37,3 +37,17 @@ def get_all_images(path):
         if file.lower().endswith(VALID_IMAGE_EXTENSIONS):
             all_images.append(os.path.join(path, file))
     return all_images
+
+def format_duration(duration):
+    hours, remainder = divmod(duration.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    formatted_duration = ""
+    if hours:
+        formatted_duration += f"{hours}h "
+    if minutes:
+        formatted_duration += f"{minutes}min "
+    if seconds:
+        formatted_duration += f"{seconds}sec"
+
+    return formatted_duration.strip()
