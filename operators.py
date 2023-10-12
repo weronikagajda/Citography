@@ -11,10 +11,68 @@ from PIL import Image #CHECK IF INSTALLED
 from pyproj import Transformer #CHECK IF INSTALLED
 from PIL.ExifTags import TAGS, GPSTAGS
 from .utilities import *
+import xml.etree.ElementTree as ET #for strava files
+from datetime import datetime
 
 IMAGE_SCALE = (8, 8, 8)
 TRANSFORM_PIVOT_POINT = 'INDIVIDUAL_ORIGINS'
 VALID_IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif')
+
+# Properties to register
+properties = {
+    "path1": bpy.props.StringProperty(
+        name="Path1",
+        description="A filepath",
+        default="",
+        maxlen=1024,
+        subtype='DIR_PATH'
+    ),
+    "path2": bpy.props.StringProperty(
+        name="Path2",
+        description="A filepath",
+        default="",
+        maxlen=1024,
+        subtype='DIR_PATH'
+    ),
+    "path3": bpy.props.StringProperty(
+        name="Path3",
+        description="A filepath",
+        default="",
+        maxlen=1024,
+        subtype='FILE_PATH'
+    ),
+    "spacing": bpy.props.FloatProperty(
+        name="Spacing",
+        description="Space between images in the grid",
+        default=2.0,
+        min=0.0,
+        max=10.0
+    ),
+    "curve_resolution_u": bpy.props.IntProperty(
+        name="Resolution",
+        description="Bezier curve resolution u",
+        default=4,
+        min=0,
+        max=30
+    ),
+    "path_duration": bpy.props.IntProperty(
+        name="Path Duration",
+        description="Set the duration that the camera will take to traverse the path",
+        default=2000,
+        min=1,
+        max=20000
+    ),
+    "gpx_duration": bpy.props.StringProperty(
+        name="GPX_Duration",
+        description= "Duration extracted from GPX file",
+        default=""
+    ),
+    "csv_duration": bpy.props.StringProperty(
+        name="CSV Duration",
+        description="Duration extracted from CSV file",
+        default=""
+    )
+}
 
 class CleanTheScene(bpy.types.Operator):
     bl_idname = "object.cleanthescene"
@@ -184,6 +242,10 @@ class ImportGeoImages(Operator):
         orientation = gps_data.get('GPSImgDirection', 0)
         obj.rotation_euler = (math.radians(85), 0, math.radians(orientation))
 
+        # Save original position and rotation
+        obj["original_location"] = obj.location[:]
+        obj["original_rotation"] = obj.rotation_euler[:]
+
         # Scale up the image by the scale factor
         obj.scale = (scale_factor, scale_factor, scale_factor)
 
@@ -223,12 +285,25 @@ class TurnImageFlat(Operator):
     
 class TurnImagesZRotation(Operator):
     bl_idname = "object.rotate_same_z"
-    bl_label = "Same z - rotation"
+    bl_label = "Same Z axis rotation"
 
     def execute(self, context):
         context.scene.tool_settings.transform_pivot_point = 'INDIVIDUAL_ORIGINS'
         for obj in context.selected_objects:
             obj.rotation_euler[2] = 0
+        return {'FINISHED'}
+    
+class ResetToOriginal(Operator):
+    bl_idname = "object.reset_to_original"
+    bl_label = "Reset to original"
+
+    def execute(self, context):
+        for obj in context.selected_objects:
+            if "original_location" in obj.keys() and "original_rotation" in obj.keys():
+                obj.location = obj["original_location"]
+                obj.rotation_euler = obj["original_rotation"]
+            else:
+                self.report({'WARNING'}, f"No original data saved for {obj.name}. Skipping.")
         return {'FINISHED'}
 
 class ImportCSVFile(Operator):
@@ -242,7 +317,7 @@ class ImportCSVFile(Operator):
         x, y = transformer.transform(longitude, latitude)
 
         # Convert altitude from feet to meters
-        z = altitude  # * 0.3048
+        z = altitude  * 0.3048
 
         # Retrieve the coordinates of the scene origin in the EPSG:3857 system
         scene_origin_crs_x = bpy.data.scenes["Scene"]["crs x"]
@@ -293,7 +368,79 @@ class ImportCSVFile(Operator):
         self.report({'INFO'}, f"Created mesh with {len(vertices)} vertices.")
     
         return {'FINISHED'}
-    
+
+#importing strava
+class ImportGPXFile(Operator):
+    bl_idname = "some_data.gpx_file"
+    bl_label = "GPX - location data"
+
+    @staticmethod
+    def convert_gps_data(latitude, longitude, altitude):
+        transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+
+        x, y = transformer.transform(longitude, latitude)
+        z = altitude  # GPX typically uses meters for altitude, but if this changes you can adjust
+
+        scene_origin_crs_x = bpy.data.scenes["Scene"]["crs x"]
+        scene_origin_crs_y = bpy.data.scenes["Scene"]["crs y"]
+
+        position_in_scene_x = x - scene_origin_crs_x
+        position_in_scene_y = y - scene_origin_crs_y
+        position_in_scene_z = z
+
+        return (position_in_scene_x, position_in_scene_y, position_in_scene_z)
+
+    def execute(self, context):
+        gpx_dir = bpy.path.abspath(context.scene.path3)
+        
+        if not os.path.exists(gpx_dir):
+            self.report({'ERROR'}, f"File does not exist: {gpx_dir}")
+            return {'CANCELLED'}
+
+        tree = ET.parse(gpx_dir)
+        root = tree.getroot()
+
+        # Extract start and end times
+        start_time = root.find(".//{http://www.topografix.com/GPX/1/1}trkpt/{http://www.topografix.com/GPX/1/1}time").text
+        end_time = list(root.findall(".//{http://www.topografix.com/GPX/1/1}trkpt/{http://www.topografix.com/GPX/1/1}time"))[-1].text
+
+        # Convert to datetime objects and calculate the duration
+        start_datetime = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+        end_datetime = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+        duration = end_datetime - start_datetime
+
+        # Format the duration using the utility function
+        formatted_duration = format_duration(duration)
+
+        # Store formatted duration in a custom scene property
+        context.scene.gpx_duration = formatted_duration
+
+        # Create new mesh and object
+        new_mesh = bpy.data.meshes.new(name='data')
+        new_object = bpy.data.objects.new('data_graph', new_mesh)
+
+        bpy.context.scene.collection.objects.link(new_object)
+        bpy.context.view_layer.objects.active = new_object
+        new_object.select_set(True)
+
+        vertices = []
+
+        # Extract and convert trackpoints from GPX data
+        for trkpt in root.findall(".//{http://www.topografix.com/GPX/1/1}trkpt"):
+            lat = float(trkpt.get('lat'))
+            lon = float(trkpt.get('lon'))
+            ele = float(trkpt.find("{http://www.topografix.com/GPX/1/1}ele").text)
+            
+            converted_coordinates = self.convert_gps_data(lat, lon, ele)
+            vertices.append(converted_coordinates)
+
+        new_mesh.from_pydata(vertices, [], [])
+        new_mesh.update()
+        
+        self.report({'INFO'}, f"Created mesh with {len(vertices)} vertices.")
+        
+        return {'FINISHED'}
+       
 class MakeVertextsToPath(Operator):
     bl_idname = "object.vertex_to_path"
     bl_label = " Polyline "
@@ -532,54 +679,9 @@ classes = [
     SetCameraTopView,
     SetCameraAnimationPath,
     AnimateCameraAlongPath,
+    ImportGPXFile,
+    ResetToOriginal,
 ]
-
-# Properties to register
-properties = {
-    "path1": bpy.props.StringProperty(
-        name="Path1",
-        description="A filepath",
-        default="",
-        maxlen=1024,
-        subtype='DIR_PATH'
-    ),
-    "path2": bpy.props.StringProperty(
-        name="Path2",
-        description="A filepath",
-        default="",
-        maxlen=1024,
-        subtype='DIR_PATH'
-    ),
-    "path3": bpy.props.StringProperty(
-        name="Path3",
-        description="A filepath",
-        default="",
-        maxlen=1024,
-        subtype='FILE_PATH'
-    ),
-    "spacing": bpy.props.FloatProperty(
-        name="Spacing",
-        description="Space between images in the grid",
-        default=2.0,
-        min=0.0,
-        max=10.0
-    ),
-    "curve_resolution_u": bpy.props.IntProperty(
-        name="Resolution",
-        description="Bezier curve resolution u",
-        default=4,
-        min=0,
-        max=30
-    ),
-    "path_duration": bpy.props.IntProperty(
-        name="Path Duration",
-        description="Set the duration that the camera will take to traverse the path",
-        default=2000,
-        min=1,
-        max=20000
-    )
-}
-
 
 def register():
     # Register classes
