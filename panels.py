@@ -94,6 +94,9 @@ class  SubPanel_PT_Geoimages(Panel):
         row = layout.row()
         row.label(text="Select and:", icon="STICKY_UVS_DISABLE")
         row.operator("object.rotate_same_z", text=TurnImagesZRotation.bl_label)
+        row = layout.row()
+        row.label(text="Select and:", icon="SNAP_EDGE")
+        row.operator("object.reset_to_original", text=ResetToOriginal.bl_label)
 
 #sub panel - import
 class SubPanel_PT_GPSData(Panel):
@@ -111,10 +114,19 @@ class SubPanel_PT_GPSData(Panel):
         layout.prop(scene, "path3", text="File") 
         layout.separator()
         row = layout.row()
+        row.operator(ImportGPXFile.bl_idname, text=ImportGPXFile.bl_label)
+        row = layout.row()
+        if hasattr(scene, "gpx_duration"):
+            duration_text = f"GPX Duration: {scene.gpx_duration}"
+            row.label(text=duration_text)
+        row = layout.row()
         row.operator(ImportCSVFile.bl_idname, text=ImportCSVFile.bl_label)
         row = layout.row()
-        row.operator(MakeVertextsToPath.bl_idname, icon="IPO_CONSTANT", text=MakeVertextsToPath.bl_label)
+        if hasattr(scene, "csv_duration"):
+            row.label(text=f"CSV Duration: {scene.csv_duration}")
         row = layout.row()
+        row.operator(MakeVertextsToPath.bl_idname, icon="IPO_CONSTANT", text=MakeVertextsToPath.bl_label)
+        row = layout.row()       
         split = row.split(factor=0.5, align=True)
         split.operator(MakeVertexToBezier.bl_idname, icon="IPO_BACK", text="Bezier Path")
         split.prop(scene, "curve_resolution_u", text="Resolution", slider=True)
@@ -122,7 +134,7 @@ class SubPanel_PT_GPSData(Panel):
 
 #sub panel - import
 class SubPanel_PT_Explore2DMap(Panel):
-    bl_label = "2D MAP"
+    bl_label = "2D MAPPING"
     bl_idname = "C_PT_Cito2dmapPpanel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
@@ -134,12 +146,12 @@ class SubPanel_PT_Explore2DMap(Panel):
         layout = self.layout
         obj = context.object 
         row = layout.row()
-        row.operator("view3d.set_camera_top_view", text="Camera")
+        row.operator("view3d.set_camera_top_view", text="Top View Camera")
         row = layout.row()
 
 # # sub panel - import
 class SubPanel_PT_Explore3DMap(Panel):
-    bl_label = "3D MAP"
+    bl_label = "3D MAPPING"
     bl_idname = "C_PT_Cito3mapPpanel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
@@ -151,11 +163,15 @@ class SubPanel_PT_Explore3DMap(Panel):
         layout = self.layout
         obj = context.object 
         row = layout.row()
-        row.operator("view3d.set_camera_animation_path", text="Camera")
-        col = layout.column()
-        col.prop(context.scene, 'path_duration', text='Path Duration')
+        row.label(text="Select a Bezier Path:", icon="IPO_BACK")
         row = layout.row()
-        row.operator("view3d.animate_camera_along_path", text="Animate Camera Along Path")
+        row.operator("view3d.set_camera_animation_path", text="Add a Camera")
+        col = layout.column()
+        col.prop(context.scene, 'path_duration', text='Key Frames: ')
+        row = layout.row()
+        row.label(text="Select the Camera:", icon="CAMERA_DATA")
+        row = layout.row()
+        row.operator("view3d.animate_camera_along_path", text="Animation: Along the Path")
 
 classes = [
     Panel_PT_CitoStart,
