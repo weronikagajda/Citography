@@ -400,20 +400,28 @@ class ImportGPXFile(Operator):
         tree = ET.parse(gpx_dir)
         root = tree.getroot()
 
-        # Extract start and end times
-        start_time = root.find(".//{http://www.topografix.com/GPX/1/1}trkpt/{http://www.topografix.com/GPX/1/1}time").text
-        end_time = list(root.findall(".//{http://www.topografix.com/GPX/1/1}trkpt/{http://www.topografix.com/GPX/1/1}time"))[-1].text
+        # Extract start and end times (if available)
+        start_time_element = root.find(".//{http://www.topografix.com/GPX/1/1}trkpt/{http://www.topografix.com/GPX/1/1}time")
+        if start_time_element is not None:
+            start_time = start_time_element.text
+        else:
+            self.report({'WARNING'}, "No start time found in GPX data")
+            start_time = None
 
-        # Convert to datetime objects and calculate the duration
-        start_datetime = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-        end_datetime = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
-        duration = end_datetime - start_datetime
+        end_time_elements = list(root.findall(".//{http://www.topografix.com/GPX/1/1}trkpt/{http://www.topografix.com/GPX/1/1}time"))
+        if end_time_elements:
+            end_time = end_time_elements[-1].text
+        else:
+            self.report({'WARNING'}, "No end time found in GPX data")
+            end_time = None
 
-        # Format the duration using the utility function
-        formatted_duration = format_duration(duration)
-
-        # Store formatted duration in a custom scene property
-        context.scene.gpx_duration = formatted_duration
+        # Optional: calculate and format the duration
+        if start_time and end_time:
+            start_datetime = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+            end_datetime = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+            duration = end_datetime - start_datetime
+            formatted_duration = format_duration(duration)
+            context.scene.gpx_duration = formatted_duration
 
         # Create new mesh and object
         new_mesh = bpy.data.meshes.new(name='data')
