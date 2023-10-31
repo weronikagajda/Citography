@@ -2,7 +2,7 @@ import addon_utils #to activate a check function
 import os
 import bpy
 
-VALID_IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif')
+VALID_IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif', '.hdr')
 
 def enable_addon(addon_name):
     # check if the addon is enabled
