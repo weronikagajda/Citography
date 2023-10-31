@@ -55,12 +55,13 @@ class SubPanel_PT_Image(Panel):
         layout.separator(factor=2)
 
         row = layout.row()
-        row.operator("object.add_random_image", icon= "IMAGE_RGB")  
+        row.operator("object.add_random_image", icon= "IMAGE_RGB")
         row = layout.row()
-         # Split the row to place elements side by side
-        split = row.split(factor=0.5, align=True)  # Adjust the 'factor' to allocate space for button and slider
-        split.operator("object.images_grid", icon= "LIGHTPROBE_GRID", text="Grid")
-        split.prop(scene, "spacing", text="Spacing", slider=True)
+        row.prop(scene, "spacing", text="Spacing", slider=True)  
+        row = layout.row()
+        row.operator("object.images_grid", icon= "LIGHTPROBE_GRID", text="Grid")
+        row = layout.row()
+        row.operator("object.images_spheres", icon= "THREE_DOTS", text="Spheres")
         row = layout.row()
         row.label(text="Select and:", icon="ARROW_LEFTRIGHT")
         row.operator("transform.resize")
@@ -166,8 +167,6 @@ class SubPanel_PT_Explore3DMap(Panel):
         row.label(text="Select a Bezier Path:", icon="IPO_BACK")
         row = layout.row()
         row.operator("view3d.set_camera_animation_path", text="Add a Camera")
-        col = layout.column()
-        col.prop(context.scene, 'path_duration', text='Key Frames: ')
         row = layout.row()
         row.label(text="Select the Camera:", icon="CAMERA_DATA")
         row = layout.row()
