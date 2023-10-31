@@ -3,8 +3,8 @@ from . import panels, operators
 bl_info = {
     "name" : "Citography - Beta",
     "author" : "Wero",
-    "version" : (1, 10),
-    "blender" : (3, 5, 1),
+    "version" : (1, 3),
+    "blender" : (3, 6, 4),
     "locoation" : "View3d > Tool",
     "description": "Extended Mapping Tool",
     "warning" : "",
