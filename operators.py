@@ -16,7 +16,7 @@ from datetime import datetime
 
 IMAGE_SCALE = (8, 8, 8)
 TRANSFORM_PIVOT_POINT = 'INDIVIDUAL_ORIGINS'
-VALID_IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif')
+VALID_IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif', '.hdr')
 
 # Properties to register
 properties = {
@@ -54,13 +54,6 @@ properties = {
         default=4,
         min=0,
         max=30
-    ),
-    "path_duration": bpy.props.IntProperty(
-        name="Path Duration",
-        description="Set the duration that the camera will take to traverse the path",
-        default=2000,
-        min=1,
-        max=20000
     ),
     "gpx_duration": bpy.props.StringProperty(
         name="GPX_Duration",
@@ -184,6 +177,79 @@ class DistributeImagesGrid(Operator):
             return {'CANCELLED'}
         
         return {'FINISHED'}    
+    
+class DistributeImagesSphere(Operator):
+    bl_idname = "object.images_spheres"
+    bl_label = "Spheres"
+
+    def execute(self, context):
+        path_for_images = bpy.path.abspath(context.scene.path1)
+        
+        try:
+            if not os.path.isdir(path_for_images):
+                self.report({'WARNING'}, f"The path {path_for_images} is not a valid directory.")
+                return {'CANCELLED'}
+            
+            all_images = get_all_images(path_for_images)
+            spacing = context.scene.spacing
+            cursor_location = context.scene.cursor.location
+
+            for image_path in all_images:
+                # Load image into Blender
+                image = bpy.data.images.load(image_path)  
+
+                # 1. Create the Sphere
+                x = cursor_location.x + spacing
+                y = cursor_location.y 
+                z = cursor_location.z
+                bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=(x, y, z))
+                sphere = bpy.context.active_object
+
+                # 2. Create a New Material and assign it to the Sphere
+                material = bpy.data.materials.new(name="Sphere_Material")
+                sphere.data.materials.append(material)
+
+                # 4. Set up the Shader Nodes
+                material.use_nodes = True
+                nodes = material.node_tree.nodes
+
+                # Clear default nodes
+                for node in nodes:
+                    nodes.remove(node)
+
+                # Add Shader to RGB node
+                shader_to_rgb = nodes.new(type='ShaderNodeShaderToRGB')
+                shader_to_rgb.location = (0,0)
+
+                # Add an Emission shader node
+                emission = nodes.new(type='ShaderNodeEmission')
+                emission.location = (200,0)
+
+                # Add a Material Output node and connect the Emission shader to it
+                material_output = nodes.new(type='ShaderNodeOutputMaterial')   
+                material_output.location = (400,0)
+
+                # Add an Image Texture node and set its image to the loaded HDRI
+                image_texture = nodes.new(type='ShaderNodeTexImage')
+                image_texture.image = image
+                image_texture.location = (-200,0)
+
+                # Connect the nodes together
+                noodle1 = material.node_tree.links.new
+                noodle1(shader_to_rgb.outputs["Color"], emission.inputs["Color"])
+                noodle1(emission.outputs["Emission"], material_output.inputs["Surface"])
+                noodle1(image_texture.outputs["Color"], shader_to_rgb.inputs[0]) 
+
+                cursor_location.x += spacing 
+                
+        except FileNotFoundError:
+            self.report({'ERROR'}, f"Image file not found: {image_path}")
+            return {'CANCELLED'}
+        except Exception as e:  
+            self.report({'ERROR'}, f"An error occurred: {e}")
+            return {'CANCELLED'}
+        
+        return {'FINISHED'} 
  
 class ImportGeoImages(Operator):
     bl_idname = "object.geo_images_import"
@@ -689,6 +755,7 @@ classes = [
     AnimateCameraAlongPath,
     ImportGPXFile,
     ResetToOriginal,
+    DistributeImagesSphere,
 ]
 
 def register():
