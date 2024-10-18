@@ -7,7 +7,6 @@ Below are the versions of our Citography add-on for Blender which are currently 
 | Blender Version | Citography Version | Supported          |
 | --------------- | ------------------- | ------------------ |
 | 3.6.4           | 1.10                | :white_check_mark: |
-| --------------- | ------------------- | ------------------ |
 | 3.4.0           | 3.1                 | :white_check_mark: |
 ## Reporting a Vulnerability
 
