@@ -2,7 +2,7 @@
 
 Citography is a Blender add-on developed for spatial exploration as part of Citographer tool-kit [Discord Channel](https://discord.gg/cnKhu2HGa5), enabling users to explore collected data and experiment with its representation. Its goal is to confront and rethink the established methods of representing our surroundings. Through this, it invites users to criticaly reimagine the tools and perspectives employed for spatial exploration [Instagram - see more](https://www.instagram.com/wero.gajda/). 
 
-This mapping tool is an integral part of the 'Citography' research of [mine](https://www.linkedin.com/in/weronika-gajda-8b20ab109/) [research group](https://materialnarratives.eu/authors/8/weronika-gajda) where I investigate the intersection of digital technology, space, and the citizens' experiences.
+This mapping tool is an integral part of the 'Citography' research of [mine](https://www.linkedin.com/in/weronika-gajda-8b20ab109/) in the [research group](https://materialnarratives.eu/authors/8/weronika-gajda) where I investigate the intersection of digital technology, space, and the citizens' experiences.
 
 **Recommendation:**
 
